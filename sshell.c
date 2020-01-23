@@ -9,16 +9,18 @@
 #define CMDLINE_MAX 1024
 #define ARG_MAX 64
 #define PATH_MAX 1024
+#define PUNCH " \t\r\n\a"
 
-int func_cd(char **args);
-int func_pwd(char **args);
+int func_cd(char **args, int position);
+int func_pwd(char **args, int position);
+int execute_args(char **args, int position);
 
 char *builtin_args[] = {
 	 "cd",
 	 "pwd"
 };
 
-int (*builtin_func[])(char **) = {
+int (*builtin_func[])(char **, int) = {
 	&func_cd,
 	&func_pwd
 };
@@ -30,30 +32,30 @@ char **get_args(char *cmd)
 	char **args = malloc(arg_size * sizeof(char*));
 	char *arg;
 	
-	arg = strtok(cmd, " ");
+	arg = strtok(cmd, PUNCH);
 	while (arg != NULL) {
 		args[pointer] = arg;
 		pointer++;
-		arg = strtok(NULL, " ");
+		arg = strtok(NULL, PUNCH);
 	} 
 	args[pointer] = NULL;
 	
 	return args;
 }
 
-int func_cd(char **args)
+int func_cd(char **args, int position)
 {
-	if (chdir(args[1])) {
+	if (chdir(args[position + 1])) {
 		printf("Error: no such directory\n");
 		return 1;
 	}
 	return 0;
 }
 
-int func_pwd(char **args)	
+int func_pwd(char **args, int position)	
 {
 	char cwd[PATH_MAX];	
-	if (args[1] != NULL) {
+	if (args[position + 1] != NULL) {
 		//printf("Too many arguments\n");
 		//return 1;
 	}	
@@ -64,11 +66,11 @@ int func_pwd(char **args)
 }
 
 
-char *get_redir(char **args) 
+char *get_redir(char **args, int position) 
 {
 	char *outfile;
 
-	for (int i = 0; i < ARG_MAX; i++){
+	for (int i = position; i < ARG_MAX; i++){
 		if (args[i] == NULL) break;
 		outfile = strchr(args[i], '>');
 		if (outfile != NULL) {
@@ -88,22 +90,73 @@ char *get_redir(char **args)
 	return outfile;
 }
 
-int execute_args(char **args)
+
+int truncate_args(char **args, int position)
+{	
+	int status = 0;
+	char* next_ins = 0;
+	int last_ins = 0;
+	for (int i = postition; i < ARG_MAX; i++){
+		if (args[i] == NULL) break;
+		next_ins = strchr(args[i], '|');
+		if (next_ins != NULL) {
+			if (next_ins[1] == '\0' && next_ins == args[i]) {
+				i++;
+				//printf("ONLY |\n");
+				status += execute_args(args, last_ins);
+				last_ins = i;		
+			}
+			else if (next_ins[1] == '\0' && next_ins != args[i]){			
+				strncpy(args[i], args[i], next_ins - args[i]);
+				args[i][next_ins - args[i]] = '\0';
+				next_ins++;
+				//printf("End with | \n");		
+				status += execute_args(args, last_ins);
+				last_ins = i + 1;
+
+			}
+
+			else if (next_ins[1] != '\0' && next_ins != args[i]){			
+				strncpy(args[i], args[i], next_ins - args[i]);
+				args[i][next_ins - args[i]] = '\0';
+				next_ins++;
+				//printf("Middle with | \n");		
+				status += execute_args(args, last_ins);
+				args[i] = next_ins;				
+				last_ins = i;
+
+			}
+			else { //next_ins[1] != '\0' && next_ins == args[i]
+				args[i]++;
+				//printf("Start with |\n");
+				status += execute_args(args, i);
+			}		
+		}
+	}
+					status += execute_args(args, last_ins);
+	return status;
+}
+
+
+
+
+
+int execute_args(char **args, int position)
 {
 	pid_t pid;
   	int status;
 	char *outfile;
 
 
-	if (args[0] == NULL)
+	if (args[position] == NULL)
 		return 1;
-
+	//printf("Execute: %s\n", args[position]);
 	for (int i = 0; i < 2; i++) {
-		if (strcmp(args[0], builtin_args[i]) == 0)
-			return (*builtin_func[i])(args);
+		if (strcmp(args[position], builtin_args[i]) == 0)
+			return (*builtin_func[i])(args, position);
 	}
 	
-	outfile = get_redir(args);
+	outfile = get_redir(args, position);
 
 	pid = fork();
 	if (pid == 0) {
@@ -112,7 +165,8 @@ int execute_args(char **args)
 			dup2(fd, 1);
 			close(fd); 
 		}	
-		if (execvp(args[0], args) == -1)
+
+		if (execvp(args[position], args) == -1)
 			exit(-1);
     
 	} else if (pid > 0) {
@@ -158,15 +212,14 @@ int main(void)
 
                 /* Builtin command */
                 if (!strcmp(cmd, "exit")) {
-                        fprintf(stderr, "Bye...\n");
-                        printf("+ completed '%s' [0]\n", cmd);
+                        fprintf(stderr, "Bye...\n+ completed '%s' [0]\n",cmd);
 						break;
                 }
 
                 /* Regular command */
 		strcpy(temp_cmd, cmd);
 		args = get_args(temp_cmd);
-		status = execute_args(args);
+		status = truncate_args(args, 0);
 		
 		printf("+ completed '%s' [%d]\n", cmd, status);
 
