@@ -1,123 +1,146 @@
-# ECS150 Project 3 Report #
-The aim of Project 3 is to implement semaphore lock on threads, which will gain
-stable and safty to the threads library. The use of semaphore eliminate race 
-condition where both thread access the same data at almost the same time.
+# Project 3 Report #
+- Implemented semaphores locks based on project 2. 
+
+- Set a private storage for each thread.
+
+- Added critical sections and synchronization between threads.
+
 
 ## Phase 1 ##
 
-### [sem_creat](https://github.com/zhongquanchen/ecs150proj3/blob/ddd85a60f9c8cff59177354358493df40586cc4a/libuthread/sem.c#L17) ###
+- Implement a structure `semaphore`. The structure contains three objects: `queue` lists all the blocked threads, `blocked` stores the number of elements in the queue and `count` records the number of semaphores that are available.
 
-Initialize a semaphore lock. @count parameter will use to set the total availible
-lock for semaphore. First, allocate a size for sem struct. Then, assign the count
-to total avalible locks. And assign a queue within the struct.
+    ```c
+    struct semaphore {
+	    int blocked;
+	    size_t count;
+	    queue_t queue;
+    };
+    ```
+### sem_create ###
 
-### [sem_destory](https://github.com/zhongquanchen/ecs150proj3/blob/ddd85a60f9c8cff59177354358493df40586cc4a/libuthread/sem.c#L27) ###
+    Three steps are needed to initialize a `semaphore`. Allocate space with the size of `semaphore`. Create a `queue` for the blocked threads. Assign the semaphore counter with the input `count`. 
 
-This function will check & free semaphore location. 
-We first check whether the semaphore is null than check whether there are still
-some block threads, the free the semaphore.
+### sem_destroy ###
 
-### [sem down](https://github.com/zhongquanchen/ecs150proj3/blob/ddd85a60f9c8cff59177354358493df40586cc4a/libuthread/sem.c#L37) ###
+    Before deallocating the space, a error handler is needed to check the status of `semaphore`. First, make sure `semaphore` has been correctly initialized. A structure cannot be destroyed if it is not created. Second, make sure there are no more blocked threads in `queue`. Then `free(semaphore)`.
 
-This function will take a lock, which locks the resource to access. 
-We check whether the locks are avalible in semaphore (count != 0). if count = 0
-it will put itself into block state, wait until other thread wakes it. We set
-up a while loop in case that when it wake by A thread but B thread is taking 
-the resource. After locking, count - 1.
+### sem_down ###
 
-### [sem_up](https://github.com/zhongquanchen/ecs150proj3/blob/ddd85a60f9c8cff59177354358493df40586cc4a/libuthread/sem.c#L57) ###
+    Check the initialization of `semaphore`. Return if it is not correctly initialized. The following actions should be bounded in critical section. If there is no more semaphore available, put the thread into `queue` and block the thread.
 
-This function will release the lock, which count + 1.
-After it release the lock, it will check if there is any thread block in the 
-queue. If there is, it will dequeue it, otherwise exit the function.
+### sem_up ###
+
+    Check the initialization of `semaphore`. Return if it is not correctly initialized. The following actions should be bounded in critical section. If there are blocked threads in `queue`, release one.
 
 ### sem_getvalue ###
 
-This function check if the semaphore is null (not created) will return -1.
-Otherwise return 0, @sval will capture the value of availible locks.
+    Check the initialization of `semaphore`. Return if it is not correctly initialized. Change value of `sval` according to the status of `semaphore`.
 
-## [Phase 2](https://github.com/zhongquanchen/ecs150proj3/blob/ddd85a60f9c8cff59177354358493df40586cc4a/libuthread/tps.c#L25) ##
 
-### struct page ###
+## phase 2 ##
 
-We set a basic structure of page which contains a pointer which points to a page 
-of memory and a refernce showing that there is sharing pages of this memory.
 
-### struct TPS ###
 
-The basic structure of TPS which contains a page struct and thread id.
 
-### static int find_tid(void* data, void* arg) ###
+    The structure `linked_node` is a singly linked list. And since
+`queue` wraps this structure with two pointer `head` and `tail`,
+the `enqueue` and `dequeue` operations could be done very
+efficiently, i.e., in O(1). Though, deleting a specific element
+and iterating the whole list still need linear time.
 
-We set up this function because it will be needed to search for a corresponding 
-thread and using by ` queue_iterate ` function. Bascly, it compare both address
-and return 1 if they are the same. 
+- Each thread has its TCB (*thread control block*), which is designed
+as the following.
 
-### static int find_sig(void* data, void* arg) ###
+    ```c
+    enum uthread_state {
+        UT_READY,
+        UT_BLOCKED,
+        UT_DEAD
+    };
 
-Other helper function that will used by ` queue iterate `. This function will
-capture the signal and compare it to each page memory location, to see if the
-signal is comming from TPS segmentation fault. Same working idea above. 
+    struct uthread_tcb {
+        uthread_t tid;
+        uthread_ctx_t *ctx;
+        enum uthread_state st;
+        uthread_t join_parent;
+        int retval;
+        void *top_of_stack;
+    };
+    ```
 
-### Segv_handler ###
+    The structure `uthread_tcb` contains six fields.
+    * `tid` stores the thread identifier.
+    * `ctx` stores the `uthread_ctx_t` structure which is
+a simple wrapper of `ucontext_t` defined in `context.h`. In this structure
+it stores the context of a running thread including the pointer to
+the stack, register values, etc.
+    * `join_parent` stores the identifier of the parent
+thread (who calls `join`).
+    * `retval` stores the return value of this thread which could be
+specified by `uthread_exit`.
+    * `top_of_stack` stores the pointer to the stack.
+    * And last, in this design, there are 3 threading states:
+`UT_READY`, `UT_BLOCKED`, `UT_DEAD`. When a thread
+is ready, it means that it could be the next running thread. When
+a thread is blocked, in this project, the only possible case is that
+this thread calls `join` and waits some other thread. So at this time
+it can't be the target of switching. When a thread is dead, it means that
+the thread is no longer alive. However, it still consumes the resource.
+Only if some other thread explicitly calls `join`, the resource could be
+freed by that parent thread.
 
-This function will handle the signal that is comming from TPS, and distinguish
-them from seg fault. in other words, it can tell whether this seg fault is cause
-by TPS part.
+- The join mechanism works as following.
+    * Thread `A` calls `uthread_join(B)`.
+    * If thread `B` is still active (`UT_READY` or `UT_BLOCKED`). Then
+first set `join_parent` of `B` be `A` to tell `B` that `A` is waiting now.
+Then set `UT_BLOCKED` to `A` and immediately yield.
+    * Thread `B` exits with some `retval`. `B` writes this `retval`
+to its own tcb. And then `B` set `A`'s state to `UT_READY`. `B` could
+know `A` by its `join_parent` in tcb.
+    * Finally, `A` could join. And the resource consumed by `B` should be
+freed at this time.
 
-### TPS create ###
+- The advanced preemptive mechanism is implemented via `sigaction` and
+`setitimer` syscalls.
+    * `setitimer` could set an repeated alarm with fixed interval via the
+signal. `SIGVTALRM` is chose for this mechanism. And the frequency is 100 Hz.
+    * `sigaction` could set the interrupt handler for different signals.
+Here for our purpose we need to write the handler for `SIGVTALRM`. The
+handler simply calls `uthread_yield`.
+    * For implementing the preemption, we also need to protect some operations
+which manipulates the global variables. To be short, all operations related
+to `thread_queue` should be atomic.
+    * For this protective purpose, we need to temporarily disable the
+preemption by set back the handler to `SIG_IGN`.
 
-This function will create a TPS for current thread. 
-First, it will detect if it exist a TPS in this thread, return -1 if it exist.
-Then, it will malloc a TPS struct for this thread, set its tid to the TPS. 
-And enqueue it to the gloabe queue in order to gain access. 
+## Some More Details
 
-### page_create ###
+- For implementing the round-robin strategy, when a thread yield its execution,
+the scheduler first remove this thread from the `thread_queue` (it should be
+at the fore of the queue), and then push this thread to the back of queue.
+Finally, the scheduler looks up an available thread (`UT_READY`) from front
+to end in the queue. This strategy simulates a circular queue efficiently.
 
-This function is used to create a page struct for TPS struct. 
-First it will detect if @flag is clone or normal.
-CLONE : it will set the page memory to NULL, and assign to other page later.
-NORMAL : it will allocate a page struct, melloc a memory page in ` Page strcut `.
+- At the first time calling `uthread_create`, we also need to create the main
+thread for scheduling later. This function is implemented in
+`int uthread_init()` in `uthread.c`.
 
-### TPS destory ###
+- To avoid redundant code, several helper functions for iterating the queue
+is implemented as following.
 
-We check whether the TPS is exists then delete it form queue then free the whole
-TPS space.
+    ```c
+    int queue_round_robin(void *data, void *arg);
 
-### int Copy_On_Write(TPS* tps) ###
+    int find_in_queue(void *data, void *arg);
 
-This function will perform a memory copy on the reference that it points to.
-It will used by TPS Write to perform a copy before editing the page. So that
-the new change will not affect other copy which points to the original.
+    int debug_queue(void *data, void *arg);
+    ```
+    `queue_round_robin` finds the first available thread as described above.
+`find_in_queue` finds the thread which equals to `data`. `debug_queue`
+prints all elements in the queue for debug purpose.
 
-### TPS Read ###
+## Reference
 
-This function will reads the memory page copy into @buffer. 
-We first give the right to read from the TPS, then We use memcpy to copy the
-resources in TPS to buffer. Finally we close the right of read from the TPS.
-
-### TPS Write ###
-
-This function will write @buffer content into the memory page for current thread.
-We check whether the page we want to write was copied. If so we call the function
-Copy_On_Write which will copy the page and edit. If not copied, we just edit it.
-In both situition we all give the right to edit the page and close it after
-editing.
-
-### TPS Clone ###
-
-This function will let the page pointer in TPS struct points to the page where given
-by @tid.
-We make the new TPS points to the same page and add 1 on the page so that we
-know that this page was copied and if we want to edit it, we need copy it first.
-
-## Test ##
-
-We run the test in the test folder. Three test of the semaphore and
-the simple test of TPS all work. 
-` tps_test.c ` will test if the tps struct create succeed. 
-` tps_clone_test.c ` will test if the clone function works fine. (used in phase 2 but 
-also work after project completed)
-` tps_stress.c ` it will test the performence of TPS. To detect if TPS will have some 
- wrong or read wrong.
- Currently all test passed. 
+1. [signal handler](https://www.gnu.org/software/libc/manual/html_mono/libc.html#Blocking-for-Handler)
+2. [set timer](https://www.gnu.org/software/libc/manual/html_mono/libc.html#Setting-an-Alarm)
