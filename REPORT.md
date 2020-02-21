@@ -52,14 +52,12 @@ correctly initialized. Change value of `sval` according to the status of `semaph
 
 ## phase 2 ##
 
-
-
-
-    The structure `linked_node` is a singly linked list. And since
-`queue` wraps this structure with two pointer `head` and `tail`,
-the `enqueue` and `dequeue` operations could be done very
-efficiently, i.e., in O(1). Though, deleting a specific element
-and iterating the whole list still need linear time.
+-To design a private storage for each thread, two structures are created 
+as following. The main structure `Tps` has two objects. `tid` records the 
+ID of the thread and `mp` represents a structure of memory page. To make 
+`Tps` easier to understand, a scecond structure `MemPage` is introduced. 
+In the structure, `count` functions as a memory counter while `addr` 
+stores the mapping address of `mp`.
 
 - Each thread has its TCB (*thread control block*), which is designed
 as the following.
