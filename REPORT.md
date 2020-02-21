@@ -1,164 +1,123 @@
-# Project 3 Report #
-- Implemented semaphores locks based on project 2. 
-
-- Set a private storage for each thread.
-
-- Added critical sections and synchronization between threads.
-
+# ECS150 Project 3 Report #
+The aim of Project 3 is to implement semaphore lock on threads, which will gain
+stable and safty to the threads library. The use of semaphore eliminate race 
+condition where both thread access the same data at almost the same time.
 
 ## Phase 1 ##
 
-- Implement a structure `semaphore`. The structure contains three objects: `queue` lists all the blocked threads, `blocked` stores the number of elements in the queue and `count` records the number of semaphores that are available.
+### [sem_creat](https://github.com/zhongquanchen/ecs150proj3/blob/ddd85a60f9c8cff59177354358493df40586cc4a/libuthread/sem.c#L17) ###
 
-    ```c
-    struct semaphore {
-	    int blocked;
-	    size_t count;
-	    queue_t queue;
-    };
-    ```
-### sem_create ###
+Initialize a semaphore lock. @count parameter will use to set the total availible
+lock for semaphore. First, allocate a size for sem struct. Then, assign the count
+to total avalible locks. And assign a queue within the struct.
 
-Three steps are needed to initialize a `semaphore`. Allocate space 
-with the size of `semaphore`. Create a `queue` for the blocked 
-threads. Assign the semaphore counter with the input `count`. 
+### [sem_destory](https://github.com/zhongquanchen/ecs150proj3/blob/ddd85a60f9c8cff59177354358493df40586cc4a/libuthread/sem.c#L27) ###
 
-### sem_destroy ###
+This function will check & free semaphore location. 
+We first check whether the semaphore is null than check whether there are still
+some block threads, the free the semaphore.
 
- Before deallocating the space, a error handler is needed to check 
-the status of `semaphore`. First, make sure `semaphore` has been 
-correctly initialized. A structure cannot be destroyed if it is not 
-created. Second, make sure there are no more blocked threads in 
-`queue`. Then `free(semaphore)`.
+### [sem down](https://github.com/zhongquanchen/ecs150proj3/blob/ddd85a60f9c8cff59177354358493df40586cc4a/libuthread/sem.c#L37) ###
 
-### sem_down ###
+This function will take a lock, which locks the resource to access. 
+We check whether the locks are avalible in semaphore (count != 0). if count = 0
+it will put itself into block state, wait until other thread wakes it. We set
+up a while loop in case that when it wake by A thread but B thread is taking 
+the resource. After locking, count - 1.
 
-Check the initialization of `semaphore`. Return if it is 
-not correctly initialized. The following actions should be bounded 
-in critical section. If there is no more semaphore available, put 
-the thread into `queue` and block the thread until releasing.
+### [sem_up](https://github.com/zhongquanchen/ecs150proj3/blob/ddd85a60f9c8cff59177354358493df40586cc4a/libuthread/sem.c#L57) ###
 
-### sem_up ###
-
-Check the initialization of `semaphore`. Return if it is not 
-correctly initialized. The following actions should be bounded 
-in critical section. If there are blocked threads in `queue`, release one.
+This function will release the lock, which count + 1.
+After it release the lock, it will check if there is any thread block in the 
+queue. If there is, it will dequeue it, otherwise exit the function.
 
 ### sem_getvalue ###
 
-Check the initialization of `semaphore`. Return if it is not 
-correctly initialized. Change value of `sval` according to the status of `semaphore`.
+This function check if the semaphore is null (not created) will return -1.
+Otherwise return 0, @sval will capture the value of availible locks.
 
+## [Phase 2](https://github.com/zhongquanchen/ecs150proj3/blob/ddd85a60f9c8cff59177354358493df40586cc4a/libuthread/tps.c#L25) ##
 
-## phase 2 ##
+### struct page ###
 
-- To design a private storage for each thread, two structures are created 
-as following. The main structure `Tps` has two objects. `tid` records the 
-ID of the thread and `mp` represents a structure of memory page. To make 
-`Tps` easier to understand, a scecond structure `MemPage` is introduced. 
-In the structure, `count` functions as a memory counter while `addr` 
-stores the mapping address of `mp`. Also a static queue `memMsp` is 
-introduced to list all the threads.
+We set a basic structure of page which contains a pointer which points to a page 
+of memory and a refernce showing that there is sharing pages of this memory.
 
-    ```c
-    static queue_t memMap;
-    ```
-    ```c
-    typedef struct MemPage 
-    {
-	    int count;
-	    void* addr;
-    } MemPage;
-    ```
-    ```c
-    typedef struct Tps 
-    {
-	    pthread_t tid;
-	    MemPage* mp;
-    } Tps;
-    ```
-### check_sig ###
+### struct TPS ###
 
-It is a subfunction used to simplify `segv_handler()`. The function will 
-find whether the input `sig` has already existed in the input `Tps` by 
-cheking its `addr`. Return -1 if found, and 0 otherwise.
+The basic structure of TPS which contains a page struct and thread id.
 
-### check_tid ###
+### static int find_tid(void* data, void* arg) ###
 
-It is a subfunction used to simplify the `queue_iterate()`. It will find 
-whether the input `tid` exists in `Tps`. Return -1 if found, and 0 otherwise.
+We set up this function because it will be needed to search for a corresponding 
+thread and using by ` queue_iterate ` function. Bascly, it compare both address
+and return 1 if they are the same. 
 
-### mempage_set ###
+### static int find_sig(void* data, void* arg) ###
 
-It is a subfunction used to simplify the `tps_create()`. After a `Tps` 
-is created, the function will allocate space for memory page, initialize 
-`count` as 1 and `addr` with `mmap()`. Return -1 if the function fails 
-to set up the memory page.
+Other helper function that will used by ` queue iterate `. This function will
+capture the signal and compare it to each page memory location, to see if the
+signal is comming from TPS segmentation fault. Same working idea above. 
 
-### segv_handler ###
+### Segv_handler ###
 
-It is a subfunction used to simplify the `tps_init()`. It iterates through 
-`memMap` and print error through `stderr` if TPS protection fails.
+This function will handle the signal that is comming from TPS, and distinguish
+them from seg fault. in other words, it can tell whether this seg fault is cause
+by TPS part.
 
-### tps_init ###
+### TPS create ###
 
-The function could only be called once to set up the environemt. 
-`memMap` should be set up first and then set up the signal alarms.
+This function will create a TPS for current thread. 
+First, it will detect if it exist a TPS in this thread, return -1 if it exist.
+Then, it will malloc a TPS struct for this thread, set its tid to the TPS. 
+And enqueue it to the gloabe queue in order to gain access. 
 
-### tps_create ###
+### page_create ###
 
-The function allocates space for `Tps` first and then call `mempage_set` 
-to set up the memory page. After setting up `Tps`, list it into `memMap`. 
-The whole function should be bounded by critical section expcept the error handler part.
+This function is used to create a page struct for TPS struct. 
+First it will detect if @flag is clone or normal.
+CLONE : it will set the page memory to NULL, and assign to other page later.
+NORMAL : it will allocate a page struct, melloc a memory page in ` Page strcut `.
 
-### tps_destroy ###
+### TPS destory ###
 
-Before destroying `Tps`, `addr` and `queue` should be emptied and deleted first. 
-Once `Tps` is emptied, free the memory page and free the TPS at last.
+We check whether the TPS is exists then delete it form queue then free the whole
+TPS space.
 
-### tps_read ###
-The whole function should be bounded into critical section except the 
-error handler. Due to memory protection, we need to give reading access 
-to the program thorugh `mprotect()` with `PROT_READ` flag. Then, use 
-`memcpy()` to read the `addr` into `buffer`.
+### int Copy_On_Write(TPS* tps) ###
 
-### tps_write ###
-The whole function should be bounded into critical section except the 
-error handler. Due to memory protection, we need to give writing access 
-to the program thorugh `mprotect()` with `PROT_WRITE` flag. Then, use 
-`memcpy()` to write the `addr` from `buffer`. Moreover, a `Copy_on_write` 
-function is needed to initialize a memory page before writing the address.
-Within the `Copy_on_write`, a new memory page `mem` is allocated and 
-initialized as the same standard of mempage_set. Then copy `addr` of 
-the to-be-written TPS to `addr` of `mem`. Do the memory protection after reading.
+This function will perform a memory copy on the reference that it points to.
+It will used by TPS Write to perform a copy before editing the page. So that
+the new change will not affect other copy which points to the original.
 
-### tps_clone ###
-Four steps are taken to implement the fucntion. As usual, the function 
-is bounded by critical section except the error handler part. First, 
-find the target tps `sample` with `queue_iterate()`. Second, initialzie 
-a temp TPS `temp`. Allocate space for it. Then copy the memory page 
-from `sample` to `temp`. At last, put `temp` into `memMap`.
+### TPS Read ###
 
-## Error Handler ##
+This function will reads the memory page copy into @buffer. 
+We first give the right to read from the TPS, then We use memcpy to copy the
+resources in TPS to buffer. Finally we close the right of read from the TPS.
 
-Almost every function in Phase 2 needs to consider error handler. Most 
-importantly, a TPS needs to be initialized beforing using related API. 
-Thus, in `tps_create()`, `tps_destroy()`, `tps_read()`, `tps_write()` 
-and `tp_clone()`, a initialization check is needed. The functions 
-return -1 if the checker fails. Also, other initialization, i.e. memory page 
-initialization, also needs checkers. Except init checks, `queue_iterate()`, 
-`queue_enqueue()` and `queue_dequeue()` also needs error handlers since they 
-have potential risks to return -1. Lastly, `tps_read()` and `tps_write()` 
-needs to check whether `buffer` fits the size of memory page. If `offset + length` 
-is larger than `MAXSIZE`, which is defined as 4096 at the beginning, 
-reading or writing will not fit inside the memory page, resulting in return at the value of -1. 
+### TPS Write ###
 
-##Reference##
+This function will write @buffer content into the memory page for current thread.
+We check whether the page we want to write was copied. If so we call the function
+Copy_On_Write which will copy the page and edit. If not copied, we just edit it.
+In both situition we all give the right to edit the page and close it after
+editing.
 
-1. (https://www.gnu.org/software/libc/manual/html_mono/libc.html#Blocking-for-Handler)
-2. (https://www.gnu.org/software/libc/manual/html_mono/libc.html#Semaphores)
-3. (https://www.gnu.org/software/libc/manual/html_mono/libc.html#Signal-Handling)
-4. (https://linux.die.net/man/2/munmap)
-5. (http://man7.org/linux/man-pages/man2/mprotect.2.html)
-6. (http://man7.org/linux/man-pages/man2/mmap.2.html)
-7. (http://man7.org/linux/man-pages/man7/pkeys.7.html)
+### TPS Clone ###
+
+This function will let the page pointer in TPS struct points to the page where given
+by @tid.
+We make the new TPS points to the same page and add 1 on the page so that we
+know that this page was copied and if we want to edit it, we need copy it first.
+
+## Test ##
+
+We run the test in the test folder. Three test of the semaphore and
+the simple test of TPS all work. 
+` tps_test.c ` will test if the tps struct create succeed. 
+` tps_clone_test.c ` will test if the clone function works fine. (used in phase 2 but 
+also work after project completed)
+` tps_stress.c ` it will test the performence of TPS. To detect if TPS will have some 
+ wrong or read wrong.
+ Currently all test passed. 
