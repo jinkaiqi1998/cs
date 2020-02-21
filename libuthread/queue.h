@@ -28,7 +28,7 @@ queue_t queue_create(void);
  *
  * Deallocate the memory associated to the queue object pointed by @queue.
  *
- * Return: -1 if @queue is NULL or if @queue is not empty. 0 if @queue was
+ * Return: -1 if @queue is NULL of if @queue is not empty. 0 if @queue was
  * successfully destroyed.
  */
 int queue_destroy(queue_t queue);
@@ -87,17 +87,16 @@ typedef int (*queue_func_t)(void *data, void *arg);
  * @arg: (Optional) Extra argument to be passed to the callback function
  * @data: (Optional) Address of data pointer where an item can be received
  *
- * This function iterates through the items in the queue @queue, from the oldest
- * item to the newest item, and calls the given callback function @func on each
- * item. The callback function receives the current data item and @arg.
+ * This function iterates through the items in the queue @queue and calls the
+ * given callback function @func on each item. The callback function receives
+ * the current data item and @arg.
  *
  * If @func returns 1 for a specific item, the iteration stops prematurely. In
  * this case only, if @data is different than NULL, then @data receives the data
  * item where the iteration was stopped.
  *
- * We assume that operations that modify the queue (such as queue_delete(),
- * queue_enqueue(), or queue_dequeue()) cannot be called inside @func on the
- * current data item. Doing so would result in undefined behavior.
+ * We assume that queue_delete() cannot be called inside @func on the current
+ * data item. Doing so would result in undefined behavior.
  *
  * Return: -1 if @queue or @func are NULL, 0 otherwise.
  */

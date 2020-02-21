@@ -1,9 +1,12 @@
 # Target programs
 #  **Add more lines to this variable in order to compile more programs**
 programs := \
-	queue_tester.x \
-	uthread_hello.x \
-	uthread_yield.x
+	sem_count.x \
+	sem_buffer.x \
+	sem_prime.x \
+	tps_simple.x \
+	tps_clone.x \
+	tps_wr.x
 
 ## *** IMPORTANT *** ##
 ##	You should NOT have to modify anything below
@@ -22,7 +25,7 @@ all: $(libuthread) $(programs)
 # Avoid builtin rules and variables
 MAKEFLAGS += -rR
 
-# Don't print the commands unless explicitely requested with `make V=1`
+# Don't print the commands unless explicitly requested with `make V=1`
 ifneq ($(V),1)
 Q = @
 V = 0
@@ -37,12 +40,16 @@ CC	= gcc
 # General gcc options
 CFLAGS	:= -Wall -Werror
 CFLAGS	+= -pipe
+CFLAGS	+= -pthread
 ## Debug flag
 ifneq ($(D),1)
 CFLAGS	+= -O2
 else
 CFLAGS	+= -g
 endif
+
+# Linker options
+LDFLAGS := -L$(UTHREADPATH) -luthread
 
 # Include path
 INCLUDE := -I$(UTHREADPATH)
@@ -65,7 +72,7 @@ $(libuthread):
 # Generic rule for linking final applications
 %.x: %.o $(libuthread)
 	@echo "LD	$@"
-	$(Q)$(CC) $(CFLAGS) -o $@ $< -L$(UTHREADPATH) -luthread
+	$(Q)$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
 
 # Generic rule for compiling objects
 %.o: %.c
