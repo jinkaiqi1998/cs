@@ -74,51 +74,7 @@ stores the mapping address of `mp`.
 	    MemPage* mp;
     } Tps;
     ```
-
-    The structure `uthread_tcb` contains six fields.
-    * `tid` stores the thread identifier.
-    * `ctx` stores the `uthread_ctx_t` structure which is
-a simple wrapper of `ucontext_t` defined in `context.h`. In this structure
-it stores the context of a running thread including the pointer to
-the stack, register values, etc.
-    * `join_parent` stores the identifier of the parent
-thread (who calls `join`).
-    * `retval` stores the return value of this thread which could be
-specified by `uthread_exit`.
-    * `top_of_stack` stores the pointer to the stack.
-    * And last, in this design, there are 3 threading states:
-`UT_READY`, `UT_BLOCKED`, `UT_DEAD`. When a thread
-is ready, it means that it could be the next running thread. When
-a thread is blocked, in this project, the only possible case is that
-this thread calls `join` and waits some other thread. So at this time
-it can't be the target of switching. When a thread is dead, it means that
-the thread is no longer alive. However, it still consumes the resource.
-Only if some other thread explicitly calls `join`, the resource could be
-freed by that parent thread.
-
-- The join mechanism works as following.
-    * Thread `A` calls `uthread_join(B)`.
-    * If thread `B` is still active (`UT_READY` or `UT_BLOCKED`). Then
-first set `join_parent` of `B` be `A` to tell `B` that `A` is waiting now.
-Then set `UT_BLOCKED` to `A` and immediately yield.
-    * Thread `B` exits with some `retval`. `B` writes this `retval`
-to its own tcb. And then `B` set `A`'s state to `UT_READY`. `B` could
-know `A` by its `join_parent` in tcb.
-    * Finally, `A` could join. And the resource consumed by `B` should be
-freed at this time.
-
-- The advanced preemptive mechanism is implemented via `sigaction` and
-`setitimer` syscalls.
-    * `setitimer` could set an repeated alarm with fixed interval via the
-signal. `SIGVTALRM` is chose for this mechanism. And the frequency is 100 Hz.
-    * `sigaction` could set the interrupt handler for different signals.
-Here for our purpose we need to write the handler for `SIGVTALRM`. The
-handler simply calls `uthread_yield`.
-    * For implementing the preemption, we also need to protect some operations
-which manipulates the global variables. To be short, all operations related
-to `thread_queue` should be atomic.
-    * For this protective purpose, we need to temporarily disable the
-preemption by set back the handler to `SIG_IGN`.
+    
 
 ## Some More Details
 
