@@ -52,13 +52,12 @@ correctly initialized. Change value of `sval` according to the status of `semaph
 
 ## phase 2 ##
 
--To design a private storage for each thread, two structures are created 
+- To design a private storage for each thread, two structures are created 
 as following. The main structure `Tps` has two objects. `tid` records the 
 ID of the thread and `mp` represents a structure of memory page. To make 
 `Tps` easier to understand, a scecond structure `MemPage` is introduced. 
 In the structure, `count` functions as a memory counter while `addr` 
 stores the mapping address of `mp`.
-
 
     ```c
     typedef struct MemPage 
@@ -74,8 +73,6 @@ stores the mapping address of `mp`.
 	    MemPage* mp;
     } Tps;
     ```
-    
-
 ## Some More Details
 
 - For implementing the round-robin strategy, when a thread yield its execution,
