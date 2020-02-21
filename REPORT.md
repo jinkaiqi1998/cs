@@ -59,13 +59,15 @@ ID of the thread and `mp` represents a structure of memory page. To make
 In the structure, `count` functions as a memory counter while `addr` 
 stores the mapping address of `mp`.
 
+
     ```c
     typedef struct MemPage 
     {
 	    int count;
 	    void* addr;
     } MemPage;
-
+    ```
+    ```c
     typedef struct Tps 
     {
 	    pthread_t tid;
