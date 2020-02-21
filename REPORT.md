@@ -19,13 +19,13 @@
     ```
 ### sem_create ###
 
-    Three steps are needed to initialize a `semaphore`. Allocate space 
+Three steps are needed to initialize a `semaphore`. Allocate space 
 with the size of `semaphore`. Create a `queue` for the blocked 
 threads. Assign the semaphore counter with the input `count`. 
 
 ### sem_destroy ###
 
-    Before deallocating the space, a error handler is needed to check 
+ Before deallocating the space, a error handler is needed to check 
 the status of `semaphore`. First, make sure `semaphore` has been 
 correctly initialized. A structure cannot be destroyed if it is not 
 created. Second, make sure there are no more blocked threads in 
@@ -33,20 +33,20 @@ created. Second, make sure there are no more blocked threads in
 
 ### sem_down ###
 
-    Check the initialization of `semaphore`. Return if it is 
+Check the initialization of `semaphore`. Return if it is 
 not correctly initialized. The following actions should be bounded 
 in critical section. If there is no more semaphore available, put 
 the thread into `queue` and block the thread until releasing.
 
 ### sem_up ###
 
-    Check the initialization of `semaphore`. Return if it is not 
+Check the initialization of `semaphore`. Return if it is not 
 correctly initialized. The following actions should be bounded 
 in critical section. If there are blocked threads in `queue`, release one.
 
 ### sem_getvalue ###
 
-    Check the initialization of `semaphore`. Return if it is not 
+Check the initialization of `semaphore`. Return if it is not 
 correctly initialized. Change value of `sval` according to the status of `semaphore`.
 
 
