@@ -1,87 +1,123 @@
-# Project 2 REPORT #
-- Zeyu Bai(914237257)
-- Kaiqi Jin(914037402)
----
-```shell
-sshell$ date
-2020/2/5/ Tue 13:11:18 PDT
-sshell$
-```
+# ECS150 Project 3 Report #
+The aim of Project 3 is to implement semaphore lock on threads, which will gain
+stable and safty to the threads library. The use of semaphore eliminate race 
+condition where both thread access the same data at almost the same time.
+
 ## Phase 1 ##
-- Queue Implement
-    
-    - At the beginning, we use `element()` function to struct element represents every single element in the queue. It cant store the pointer of current element as well as the pointer of the next element.
-    
-    - We use `queue()` to store the first and last elements, and the size of queue.
-    
-    - We use `queue_create()` to initialize the queue and we use `queue_destory()` to free the elements first. 
-    
-    - We use `queue_enqueue()` to add elements into a queue. In this function, we consider two situation. The queue is empty and the queue already had some members.
-    
-    - We use `queue_dequeue()` to delete the first element. If the queue is empty already, we will return -1.
-    
-    - We use `queue_delete()` to delete the data called in other functions. If the data is not found in the queue, we will return value -1. 
-    
-    - We use `queue_iterate()` to iterate queue when there are members in the queue. When the exection is found, return 0.
 
+### [sem_creat](https://github.com/zhongquanchen/ecs150proj3/blob/ddd85a60f9c8cff59177354358493df40586cc4a/libuthread/sem.c#L17) ###
 
-## Phase 2 and 3: Uthread ##
+Initialize a semaphore lock. @count parameter will use to set the total availible
+lock for semaphore. First, allocate a size for sem struct. Then, assign the count
+to total avalible locks. And assign a queue within the struct.
 
-- UThread Implement
-    - At the beginning, we define `UTHREAD_MAX` and `UTHREAD_STACK_SIZE`. And create 4 static thread_state `ready`, `running`, `blocked`, and `zombie`.
-   
-     - And then in our `initialization()` function, we check if the queue is empty or not. If empty, we use `queue_create()` to create a thread to main and assign initialize values to them. If it is failed to initialize, we return -1.  At the end we enqueue into the `Ready State` and return the number of queue.
+### [sem_destory](https://github.com/zhongquanchen/ecs150proj3/blob/ddd85a60f9c8cff59177354358493df40586cc4a/libuthread/sem.c#L27) ###
 
-    - We use the function `Uthread_yield()` to dequeue the first `ready state` and switch it with the prvious `running state`. 
-    
-    - We use the function `uthread_self()` to return the TID of the running thread. 
-    
-    - We use the function `uthread_exit()` to find the current running state and put it into zombie state which will stop it. And then find the ready state and put it into running state. And then we dertermine if  threads in `zombie-state` has a parent, if so, put it in `ready_state`.
-    
-    - We use the function `uthread_join()` here to check and put queue into `block_state` and swap it with the thread it join with. It will wait until the child thread finish jobs. After they finish and be put into zombie state to exit, then the parents will collect the values.
+This function will check & free semaphore location. 
+We first check whether the semaphore is null than check whether there are still
+some block threads, the free the semaphore.
 
+### [sem down](https://github.com/zhongquanchen/ecs150proj3/blob/ddd85a60f9c8cff59177354358493df40586cc4a/libuthread/sem.c#L37) ###
 
-# Phase 4: Preemptive #
+This function will take a lock, which locks the resource to access. 
+We check whether the locks are avalible in semaphore (count != 0). if count = 0
+it will put itself into block state, wait until other thread wakes it. We set
+up a while loop in case that when it wake by A thread but B thread is taking 
+the resource. After locking, count - 1.
 
-- The beginning, we define `inter=10000`. And then we write a code below to set up a static struct to receive signal from timer alarm named `act` which is of type `SIGVTALRM`:
-```c
-static struct sigaction act; 
-```
+### [sem_up](https://github.com/zhongquanchen/ecs150proj3/blob/ddd85a60f9c8cff59177354358493df40586cc4a/libuthread/sem.c#L57) ###
 
-- We use `timer_handler()` to set up a signal handler to receive signals if there are signals transfered.
+This function will release the lock, which count + 1.
+After it release the lock, it will check if there is any thread block in the 
+queue. If there is, it will dequeue it, otherwise exit the function.
 
-- We learned the ways to use preemptive from really useful resource `24.7.4 Blocking to Test for Delivery of a Signal`: 
-    - We use `preemptive_disable()` to delete the signal flag SIGVTALRM in blockmask:
-    
-    - We use `preemptive_enable()` to receive signal flag SIGVTALRM into static variable blockmask. 
+### sem_getvalue ###
 
-- In `preempt_start()` function:
-    - we set a signal alarm and initialize sigaction. And then define a timer for alarm setting. 
+This function check if the semaphore is null (not created) will return -1.
+Otherwise return 0, @sval will capture the value of availible locks.
 
-# Test Implements #
+## [Phase 2](https://github.com/zhongquanchen/ecs150proj3/blob/ddd85a60f9c8cff59177354358493df40586cc4a/libuthread/tps.c#L25) ##
 
-- We use the file `queue_tester.c`that professor provided us with. And try to use unit test and add more unit to test our queue.
+### struct page ###
 
-- We used professor's files `uthread_hello` and `uthread_yield` to test `uthread()`.
+We set a basic structure of page which contains a pointer which points to a page 
+of memory and a refernce showing that there is sharing pages of this memory.
 
-- To test the preemptive, we add a file `Preemptive_tester.c`. We tried to implement two threads that can swtich to each other automatically. By this way, we can check if the preempt can yield the current uthread and swtich to another. 
+### struct TPS ###
 
+The basic structure of TPS which contains a page struct and thread id.
 
-# Resource & Reference:
+### static int find_tid(void* data, void* arg) ###
 
+We set up this function because it will be needed to search for a corresponding 
+thread and using by ` queue_iterate ` function. Bascly, it compare both address
+and return 1 if they are the same. 
 
- - Learning a lot about preemptive from the sources provided by professor [source]:
-    - (https://www.gnu.org/software/libc/manual/html_mono/libc.html#Signal-Actions)
-    - (https://www.gnu.org/software/libc/manual/html_mono/libc.html#Setting-an-Alarm)
-    - (https://www.gnu.org/software/libc/manual/html_mono/libc.html#Blocking-Signals)
- 
+### static int find_sig(void* data, void* arg) ###
 
+Other helper function that will used by ` queue iterate `. This function will
+capture the signal and compare it to each page memory location, to see if the
+signal is comming from TPS segmentation fault. Same working idea above. 
 
+### Segv_handler ###
 
+This function will handle the signal that is comming from TPS, and distinguish
+them from seg fault. in other words, it can tell whether this seg fault is cause
+by TPS part.
 
+### TPS create ###
 
+This function will create a TPS for current thread. 
+First, it will detect if it exist a TPS in this thread, return -1 if it exist.
+Then, it will malloc a TPS struct for this thread, set its tid to the TPS. 
+And enqueue it to the gloabe queue in order to gain access. 
 
+### page_create ###
 
+This function is used to create a page struct for TPS struct. 
+First it will detect if @flag is clone or normal.
+CLONE : it will set the page memory to NULL, and assign to other page later.
+NORMAL : it will allocate a page struct, melloc a memory page in ` Page strcut `.
 
-    
-    
+### TPS destory ###
+
+We check whether the TPS is exists then delete it form queue then free the whole
+TPS space.
+
+### int Copy_On_Write(TPS* tps) ###
+
+This function will perform a memory copy on the reference that it points to.
+It will used by TPS Write to perform a copy before editing the page. So that
+the new change will not affect other copy which points to the original.
+
+### TPS Read ###
+
+This function will reads the memory page copy into @buffer. 
+We first give the right to read from the TPS, then We use memcpy to copy the
+resources in TPS to buffer. Finally we close the right of read from the TPS.
+
+### TPS Write ###
+
+This function will write @buffer content into the memory page for current thread.
+We check whether the page we want to write was copied. If so we call the function
+Copy_On_Write which will copy the page and edit. If not copied, we just edit it.
+In both situition we all give the right to edit the page and close it after
+editing.
+
+### TPS Clone ###
+
+This function will let the page pointer in TPS struct points to the page where given
+by @tid.
+We make the new TPS points to the same page and add 1 on the page so that we
+know that this page was copied and if we want to edit it, we need copy it first.
+
+## Test ##
+
+We run the test in the test folder. Three test of the semaphore and
+the simple test of TPS all work. 
+` tps_test.c ` will test if the tps struct create succeed. 
+` tps_clone_test.c ` will test if the clone function works fine. (used in phase 2 but 
+also work after project completed)
+` tps_stress.c ` it will test the performence of TPS. To detect if TPS will have some 
+ wrong or read wrong.
+ Currently all test passed. 
