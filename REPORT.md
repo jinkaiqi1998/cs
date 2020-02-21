@@ -59,24 +59,18 @@ ID of the thread and `mp` represents a structure of memory page. To make
 In the structure, `count` functions as a memory counter while `addr` 
 stores the mapping address of `mp`.
 
-- Each thread has its TCB (*thread control block*), which is designed
-as the following.
-
     ```c
-    enum uthread_state {
-        UT_READY,
-        UT_BLOCKED,
-        UT_DEAD
-    };
+    typedef struct MemPage 
+    {
+	    int count;
+	    void* addr;
+    } MemPage;
 
-    struct uthread_tcb {
-        uthread_t tid;
-        uthread_ctx_t *ctx;
-        enum uthread_state st;
-        uthread_t join_parent;
-        int retval;
-        void *top_of_stack;
-    };
+    typedef struct Tps 
+    {
+	    pthread_t tid;
+	    MemPage* mp;
+    } Tps;
     ```
 
     The structure `uthread_tcb` contains six fields.
